@@ -182,6 +182,7 @@
           continuation.resume(with: result)
         }
         model.sessionHandler = { session in
+          defer { self.model.sessionHandler = nil }
           do {
             let value = try await operation(session)
             resume(.success(value))
@@ -189,8 +190,27 @@
             resume(.failure(error))
           }
         }
-        model.configuration = TranslationSession.Configuration(source: source, target: target)
+        self.prepareConfiguration(source: source, target: target)
       }
+    }
+
+    private func prepareConfiguration(source: Locale.Language?, target: Locale.Language) {
+      if var configuration = model.configuration,
+         Self.samePair(configuration, source: source, target: target) {
+        configuration.invalidate()
+        model.configuration = configuration
+        return
+      }
+      model.configuration = TranslationSession.Configuration(source: source, target: target)
+    }
+
+    private static func samePair(
+      _ configuration: TranslationSession.Configuration,
+      source: Locale.Language?,
+      target: Locale.Language
+    ) -> Bool {
+      languageTag(configuration.source) == languageTag(source)
+        && languageTag(configuration.target) == languageTag(target)
     }
 
     private func attachIfNeeded() async throws {
