@@ -49,9 +49,13 @@ jobs:
         working-directory: example
         run: flutter pub get
 
+      - name: Generate Android build files
+        working-directory: example
+        run: flutter build apk --config-only --debug
+
       - name: Run Android unit tests
         working-directory: example/android
-        run: ./gradlew :local_translation:testDebugUnitTest
+        run: ./gradlew :local_translation:testDebugUnitTest --no-daemon
 
   swift_tests:
     runs-on: macos-latest
@@ -84,7 +88,7 @@ jobs:
           for devices in data["devices"].values():
               for device in devices:
                   if device.get("isAvailable") and "iPhone" in device.get("name", ""):
-                      print("platform=iOS Simulator,id=" + device["udid"])
+                      print("platform=iOS Simulator,arch=arm64,id=" + device["udid"])
                       raise SystemExit
           raise SystemExit("No available iPhone simulator")
           ')
@@ -93,8 +97,7 @@ jobs:
             -scheme Runner \
             -destination "$DESTINATION" \
             -only-testing:RunnerTests \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGN_IDENTITY=-
 
       - name: Generate macOS build files
         working-directory: example

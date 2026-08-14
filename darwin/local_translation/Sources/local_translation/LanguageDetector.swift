@@ -14,7 +14,7 @@ enum LanguageDetector {
       if trimmed.isEmpty {
         return HostLanguageDetection(languageCode: nil, confidence: 0)
       }
-      recognizer.processString(text)
+      recognizer.processString(trimmed)
       let languageCode = recognizer.dominantLanguage?.rawValue
       let confidence = recognizer.languageHypotheses(withMaximum: 1).values.first ?? 0
       return HostLanguageDetection(languageCode: languageCode, confidence: confidence)

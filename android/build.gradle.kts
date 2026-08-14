@@ -50,7 +50,6 @@ android {
 
     testOptions {
         unitTests {
-            isIncludeAndroidResources = true
             all {
                 it.useJUnitPlatform()
 
@@ -72,5 +71,5 @@ kotlin {
 }
 
 dependencies {
-    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 }
