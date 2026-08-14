@@ -1,0 +1,262 @@
+#if canImport(Translation)
+  import Combine
+  import SwiftUI
+  import Translation
+  import UIKit
+#endif
+
+#if canImport(Translation)
+  @available(iOS 18.0, *)
+  @MainActor
+  final class TranslationSessionHost {
+    static let shared = TranslationSessionHost()
+
+    private let model = TranslationHostModel()
+    private var hostingController: UIHostingController<TranslationHostView>?
+    private var appearWaiter: CheckedContinuation<Void, Never>?
+    private var viewAppeared = false
+    private var tail: Task<Void, Never> = Task {}
+
+    func translate(
+      text: String,
+      sourceLanguage: String?,
+      targetLanguage: String
+    ) async throws -> HostTranslationResult {
+      try await enqueue {
+        try await self.performTranslate(
+          text: text,
+          sourceLanguage: sourceLanguage,
+          targetLanguage: targetLanguage
+        )
+      }
+    }
+
+    func translateBatch(
+      texts: [String],
+      sourceLanguage: String?,
+      targetLanguage: String
+    ) async throws -> [HostTranslationResult] {
+      try await enqueue {
+        try await self.performTranslateBatch(
+          texts: texts,
+          sourceLanguage: sourceLanguage,
+          targetLanguage: targetLanguage
+        )
+      }
+    }
+
+    private func enqueue<T>(
+      _ work: @escaping @MainActor () async throws -> T
+    ) async throws -> T {
+      let previous = tail
+      return try await withCheckedThrowingContinuation { continuation in
+        tail = Task { @MainActor in
+          await previous.value
+          do {
+            let value = try await work()
+            continuation.resume(returning: value)
+          } catch {
+            continuation.resume(throwing: error)
+          }
+        }
+      }
+    }
+
+    private func performTranslate(
+      text: String,
+      sourceLanguage: String?,
+      targetLanguage: String
+    ) async throws -> HostTranslationResult {
+      let source = sourceLanguage.map { Locale.Language(identifier: $0) }
+      let target = Locale.Language(identifier: targetLanguage)
+      return try await withSession(source: source, target: target) { session in
+        let response = try await session.translate(text)
+        return HostTranslationResult(
+          sourceText: text,
+          translatedText: response.targetText,
+          sourceLanguage: Self.languageTag(response.sourceLanguage) ?? sourceLanguage,
+          targetLanguage: Self.languageTag(response.targetLanguage) ?? targetLanguage
+        )
+      }
+    }
+
+    private func performTranslateBatch(
+      texts: [String],
+      sourceLanguage: String?,
+      targetLanguage: String
+    ) async throws -> [HostTranslationResult] {
+      if texts.isEmpty {
+        return []
+      }
+      if let sourceLanguage {
+        return try await translateSameLanguage(
+          texts: texts,
+          sourceLanguage: sourceLanguage,
+          targetLanguage: targetLanguage
+        )
+      }
+
+      let detections = LanguageDetector.detect(texts: texts)
+      var groups: [String: [(Int, String)]] = [:]
+      var unknown: [(Int, String)] = []
+      for (index, text) in texts.enumerated() {
+        if let code = detections[index].languageCode {
+          groups[code, default: []].append((index, text))
+        } else {
+          unknown.append((index, text))
+        }
+      }
+
+      var results = [HostTranslationResult?](repeating: nil, count: texts.count)
+      for (code, items) in groups {
+        let translated = try await translateSameLanguage(
+          texts: items.map(\.1),
+          sourceLanguage: code,
+          targetLanguage: targetLanguage
+        )
+        for (offset, item) in items.enumerated() {
+          results[item.0] = translated[offset]
+        }
+      }
+      for (index, text) in unknown {
+        results[index] = try await performTranslate(
+          text: text,
+          sourceLanguage: nil,
+          targetLanguage: targetLanguage
+        )
+      }
+      return try results.map { result in
+        guard let result else {
+          throw PigeonError(
+            code: "unknown",
+            message: "Missing translation result",
+            details: nil
+          )
+        }
+        return result
+      }
+    }
+
+    private func translateSameLanguage(
+      texts: [String],
+      sourceLanguage: String,
+      targetLanguage: String
+    ) async throws -> [HostTranslationResult] {
+      let source = Locale.Language(identifier: sourceLanguage)
+      let target = Locale.Language(identifier: targetLanguage)
+      return try await withSession(source: source, target: target) { session in
+        let requests = texts.enumerated().map { index, text in
+          TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
+        }
+        let responses = try await session.translations(from: requests)
+        return zip(texts, responses).map { text, response in
+          HostTranslationResult(
+            sourceText: text,
+            translatedText: response.targetText,
+            sourceLanguage: Self.languageTag(response.sourceLanguage) ?? sourceLanguage,
+            targetLanguage: Self.languageTag(response.targetLanguage) ?? targetLanguage
+          )
+        }
+      }
+    }
+
+    private func withSession<T>(
+      source: Locale.Language?,
+      target: Locale.Language,
+      operation: @escaping (TranslationSession) async throws -> T
+    ) async throws -> T {
+      try await attachIfNeeded()
+      return try await withCheckedThrowingContinuation { continuation in
+        var resumed = false
+        func resume(_ result: Result<T, Error>) {
+          guard !resumed else { return }
+          resumed = true
+          continuation.resume(with: result)
+        }
+        model.sessionHandler = { session in
+          do {
+            let value = try await operation(session)
+            resume(.success(value))
+          } catch {
+            resume(.failure(error))
+          }
+        }
+        model.configuration = TranslationSession.Configuration(source: source, target: target)
+      }
+    }
+
+    private func attachIfNeeded() async throws {
+      if hostingController == nil {
+        guard let root = Self.rootViewController() else {
+          throw PigeonError(
+            code: "unknown",
+            message: "No root view controller available for translation",
+            details: nil
+          )
+        }
+        model.onAppear = { [weak self] in
+          guard let self else { return }
+          self.viewAppeared = true
+          self.appearWaiter?.resume()
+          self.appearWaiter = nil
+        }
+        let host = UIHostingController(rootView: TranslationHostView(model: model))
+        host.view.backgroundColor = .clear
+        host.view.isOpaque = false
+        host.view.isUserInteractionEnabled = false
+        host.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+        root.addChild(host)
+        root.view.addSubview(host.view)
+        host.didMove(toParent: root)
+        hostingController = host
+      }
+      if !viewAppeared {
+        await withCheckedContinuation { continuation in
+          if viewAppeared {
+            continuation.resume()
+          } else {
+            appearWaiter = continuation
+          }
+        }
+      }
+    }
+
+    private static func languageTag(_ language: Locale.Language?) -> String? {
+      language?.minimalIdentifier
+    }
+
+    private static func rootViewController() -> UIViewController? {
+      let windows = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .flatMap { $0.windows }
+      let window = windows.first(where: \.isKeyWindow) ?? windows.first
+      var controller = window?.rootViewController
+      while let presented = controller?.presentedViewController {
+        controller = presented
+      }
+      return controller
+    }
+  }
+
+  @available(iOS 18.0, *)
+  final class TranslationHostModel: ObservableObject {
+    @Published var configuration: TranslationSession.Configuration?
+    var sessionHandler: ((TranslationSession) async -> Void)?
+    var onAppear: (() -> Void)?
+  }
+
+  @available(iOS 18.0, *)
+  struct TranslationHostView: View {
+    @ObservedObject var model: TranslationHostModel
+
+    var body: some View {
+      Color.clear
+        .frame(width: 1, height: 1)
+        .allowsHitTesting(false)
+        .onAppear { model.onAppear?() }
+        .translationTask(model.configuration) { session in
+          await model.sessionHandler?(session)
+        }
+    }
+  }
+#endif
