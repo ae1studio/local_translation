@@ -1,14 +1,22 @@
-import Flutter
-import UIKit
+#if os(iOS)
+  import Flutter
+#elseif os(macOS)
+  import FlutterMacOS
+#endif
 
 public class LocalTranslationPlugin: NSObject, FlutterPlugin, LocalTranslationHostApi {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = LocalTranslationPlugin()
-    LocalTranslationHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
+    #if os(iOS)
+      let messenger = registrar.messenger()
+    #else
+      let messenger = registrar.messenger
+    #endif
+    LocalTranslationHostApiSetup.setUp(binaryMessenger: messenger, api: instance)
   }
 
   func isSupported() throws -> Bool {
-    if #available(iOS 18.0, *) {
+    if #available(iOS 18.0, macOS 15.0, *) {
       #if targetEnvironment(simulator)
         return false
       #else
@@ -45,7 +53,7 @@ public class LocalTranslationPlugin: NSObject, FlutterPlugin, LocalTranslationHo
       return
     }
     #if canImport(Translation)
-      if #available(iOS 18.0, *) {
+      if #available(iOS 18.0, macOS 15.0, *) {
         Task { @MainActor in
           do {
             let value = try await TranslationSessionHost.shared.translate(
@@ -73,7 +81,7 @@ public class LocalTranslationPlugin: NSObject, FlutterPlugin, LocalTranslationHo
       return
     }
     #if canImport(Translation)
-      if #available(iOS 18.0, *) {
+      if #available(iOS 18.0, macOS 15.0, *) {
         Task { @MainActor in
           do {
             let value = try await TranslationSessionHost.shared.translateBatch(
@@ -94,7 +102,7 @@ public class LocalTranslationPlugin: NSObject, FlutterPlugin, LocalTranslationHo
 
   private static let unsupportedPlatform = PigeonError(
     code: "unsupportedPlatform",
-    message: "Translation requires iOS 18 or later on a physical device",
+    message: "Translation requires iOS 18 or later on a physical device, or macOS 15 or later",
     details: nil
   )
 

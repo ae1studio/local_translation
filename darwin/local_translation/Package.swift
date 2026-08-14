@@ -6,7 +6,8 @@ import PackageDescription
 let package = Package(
     name: "local_translation",
     platforms: [
-        .iOS("15.0")
+        .iOS("15.0"),
+        .macOS("10.15"),
     ],
     products: [
         .library(name: "local-translation", targets: ["local_translation"])

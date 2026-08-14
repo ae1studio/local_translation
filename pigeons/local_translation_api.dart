@@ -5,7 +5,7 @@ import 'package:pigeon/pigeon.dart';
     dartOut: 'lib/src/messages.g.dart',
     dartOptions: DartOptions(),
     swiftOut:
-        'ios/local_translation/Sources/local_translation/Messages.g.swift',
+        'darwin/local_translation/Sources/local_translation/Messages.g.swift',
     swiftOptions: SwiftOptions(),
     kotlinOut: 'android/src/main/kotlin/dev/ae1/local_translation/Messages.g.kt',
     kotlinOptions: KotlinOptions(

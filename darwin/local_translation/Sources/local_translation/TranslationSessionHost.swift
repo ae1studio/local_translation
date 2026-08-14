@@ -2,17 +2,25 @@
   import Combine
   import SwiftUI
   import Translation
-  import UIKit
+  #if os(iOS)
+    import UIKit
+  #elseif os(macOS)
+    import AppKit
+  #endif
 #endif
 
 #if canImport(Translation)
-  @available(iOS 18.0, *)
+  @available(iOS 18.0, macOS 15.0, *)
   @MainActor
   final class TranslationSessionHost {
     static let shared = TranslationSessionHost()
 
     private let model = TranslationHostModel()
-    private var hostingController: UIHostingController<TranslationHostView>?
+    #if os(iOS)
+      private var hostingController: UIHostingController<TranslationHostView>?
+    #elseif os(macOS)
+      private var hostingController: NSHostingController<TranslationHostView>?
+    #endif
     private var appearWaiter: CheckedContinuation<Void, Never>?
     private var viewAppeared = false
     private var tail: Task<Void, Never> = Task {}
@@ -187,28 +195,13 @@
 
     private func attachIfNeeded() async throws {
       if hostingController == nil {
-        guard let root = Self.rootViewController() else {
-          throw PigeonError(
-            code: "unknown",
-            message: "No root view controller available for translation",
-            details: nil
-          )
-        }
         model.onAppear = { [weak self] in
           guard let self else { return }
           self.viewAppeared = true
           self.appearWaiter?.resume()
           self.appearWaiter = nil
         }
-        let host = UIHostingController(rootView: TranslationHostView(model: model))
-        host.view.backgroundColor = .clear
-        host.view.isOpaque = false
-        host.view.isUserInteractionEnabled = false
-        host.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
-        root.addChild(host)
-        root.view.addSubview(host.view)
-        host.didMove(toParent: root)
-        hostingController = host
+        try Self.attachHost(TranslationHostView(model: model), storingIn: &hostingController)
       }
       if !viewAppeared {
         await withCheckedContinuation { continuation in
@@ -225,27 +218,76 @@
       language?.minimalIdentifier
     }
 
-    private static func rootViewController() -> UIViewController? {
-      let windows = UIApplication.shared.connectedScenes
-        .compactMap { $0 as? UIWindowScene }
-        .flatMap { $0.windows }
-      let window = windows.first(where: \.isKeyWindow) ?? windows.first
-      var controller = window?.rootViewController
-      while let presented = controller?.presentedViewController {
-        controller = presented
+    #if os(iOS)
+      private static func attachHost(
+        _ view: TranslationHostView,
+        storingIn hostingController: inout UIHostingController<TranslationHostView>?
+      ) throws {
+        guard let root = rootViewController() else {
+          throw PigeonError(
+            code: "unknown",
+            message: "No root view controller available for translation",
+            details: nil
+          )
+        }
+        let host = UIHostingController(rootView: view)
+        host.view.backgroundColor = .clear
+        host.view.isOpaque = false
+        host.view.isUserInteractionEnabled = false
+        host.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+        root.addChild(host)
+        root.view.addSubview(host.view)
+        host.didMove(toParent: root)
+        hostingController = host
       }
-      return controller
-    }
+
+      private static func rootViewController() -> UIViewController? {
+        let windows = UIApplication.shared.connectedScenes
+          .compactMap { $0 as? UIWindowScene }
+          .flatMap { $0.windows }
+        let window = windows.first(where: \.isKeyWindow) ?? windows.first
+        var controller = window?.rootViewController
+        while let presented = controller?.presentedViewController {
+          controller = presented
+        }
+        return controller
+      }
+    #elseif os(macOS)
+      private static func attachHost(
+        _ view: TranslationHostView,
+        storingIn hostingController: inout NSHostingController<TranslationHostView>?
+      ) throws {
+        guard let contentView = rootContentView() else {
+          throw PigeonError(
+            code: "unknown",
+            message: "No window available for translation",
+            details: nil
+          )
+        }
+        let host = NSHostingController(rootView: view)
+        host.view.wantsLayer = true
+        host.view.layer?.backgroundColor = NSColor.clear.cgColor
+        host.view.frame = NSRect(x: 0, y: 0, width: 1, height: 1)
+        contentView.addSubview(host.view)
+        hostingController = host
+      }
+
+      private static func rootContentView() -> NSView? {
+        let windows = NSApplication.shared.windows
+        let window = windows.first(where: \.isKeyWindow) ?? windows.first
+        return window?.contentView
+      }
+    #endif
   }
 
-  @available(iOS 18.0, *)
+  @available(iOS 18.0, macOS 15.0, *)
   final class TranslationHostModel: ObservableObject {
     @Published var configuration: TranslationSession.Configuration?
     var sessionHandler: ((TranslationSession) async -> Void)?
     var onAppear: (() -> Void)?
   }
 
-  @available(iOS 18.0, *)
+  @available(iOS 18.0, macOS 15.0, *)
   struct TranslationHostView: View {
     @ObservedObject var model: TranslationHostModel
 

@@ -2,9 +2,9 @@
 
 On device translation and language detection for Flutter.
 
-iOS uses Apple's [Translation](https://developer.apple.com/documentation/Translation/translating-text-within-your-app) and NaturalLanguage frameworks.
+iOS and macOS use Apple's [Translation](https://developer.apple.com/documentation/Translation/translating-text-within-your-app) and NaturalLanguage frameworks.
 
-- `isSupported()` is `true` only on **iOS 18+ physical devices**. It is `false` on older iOS, the iOS Simulator.
+- `isSupported()` is `true` on **iOS 18+ physical devices** and **macOS 15+**. It is `false` on older OS versions and the iOS Simulator.
 - Translation may prompt the user to download language models.
 
 Call `isSupported()` before `translate` or `translateBatch`. Language detection can still run when translation is unavailable.
@@ -37,7 +37,7 @@ Translation uses the same languages as Apple's [Translate app](https://support.a
 | Ukrainian | `uk` |
 | Vietnamese | `vi` |
 
-Not every source/target pair is supported. For example, translating between English variants or into the same language is rejected. Language models must be downloaded on the device before use (this is prompted when trying to translate a string for the first time). Apple may add languages in future iOS releases; see [iOS feature availability](https://www.apple.com/ios/feature-availability/) and [`LanguageAvailability`](https://developer.apple.com/documentation/translation/languageavailability).
+Not every source/target pair is supported. For example, translating between English variants or into the same language is rejected. Language models must be downloaded on the device before use (this is prompted when trying to translate a string for the first time). Apple may add languages in future iOS and macOS releases; see [iOS feature availability](https://www.apple.com/ios/feature-availability/) and [`LanguageAvailability`](https://developer.apple.com/documentation/translation/languageavailability).
 
 ## Usage
 
