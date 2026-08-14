@@ -40,6 +40,7 @@ class HostTranslateBatchRequest {
 
 @HostApi()
 abstract class LocalTranslationHostApi {
+  @async
   bool isSupported();
 
   @async

@@ -423,7 +423,7 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
 
 /** Generated interface from Pigeon that represents a handler of messages from Flutter. */
 interface LocalTranslationHostApi {
-  fun isSupported(): Boolean
+  fun isSupported(callback: (Result<Boolean>) -> Unit)
   fun detectLanguage(text: String, callback: (Result<HostLanguageDetection>) -> Unit)
   fun detectLanguages(texts: List<String>, callback: (Result<List<HostLanguageDetection>>) -> Unit)
   fun translate(request: HostTranslateRequest, callback: (Result<HostTranslationResult>) -> Unit)
@@ -442,12 +442,15 @@ interface LocalTranslationHostApi {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.local_translation.LocalTranslationHostApi.isSupported$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { _, reply ->
-            val wrapped: List<Any?> = try {
-              listOf(api.isSupported())
-            } catch (exception: Throwable) {
-              MessagesPigeonUtils.wrapError(exception)
+            api.isSupported{ result: Result<Boolean> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(MessagesPigeonUtils.wrapError(error))
+              } else {
+                val data = result.getOrNull()
+                reply.reply(MessagesPigeonUtils.wrapResult(data))
+              }
             }
-            reply.reply(wrapped)
           }
         } else {
           channel.setMessageHandler(null)

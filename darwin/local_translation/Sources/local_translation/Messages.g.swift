@@ -418,7 +418,7 @@ class MessagesPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol LocalTranslationHostApi {
-  func isSupported() throws -> Bool
+  func isSupported(completion: @escaping (Result<Bool, Error>) -> Void)
   func detectLanguage(text: String, completion: @escaping (Result<HostLanguageDetection, Error>) -> Void)
   func detectLanguages(texts: [String], completion: @escaping (Result<[HostLanguageDetection], Error>) -> Void)
   func translate(request: HostTranslateRequest, completion: @escaping (Result<HostTranslationResult, Error>) -> Void)
@@ -434,11 +434,13 @@ class LocalTranslationHostApiSetup {
     let isSupportedChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.local_translation.LocalTranslationHostApi.isSupported\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       isSupportedChannel.setMessageHandler { _, reply in
-        do {
-          let result = try api.isSupported()
-          reply(wrapResult(result))
-        } catch {
-          reply(wrapError(error))
+        api.isSupported { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
         }
       }
     } else {

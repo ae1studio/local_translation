@@ -10,9 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:meta/meta.dart' show immutable, protected, visibleForTesting;
 
 Object? _extractReplyValueOrThrow(
-  List<Object?>? replyList,
-  String channelName, {
-  required bool isNullValid,
+    List<Object?>? replyList,
+    String channelName, {
+    required bool isNullValid,
 }) {
   if (replyList == null) {
     throw PlatformException(
@@ -46,9 +46,8 @@ bool _deepEquals(Object? a, Object? b) {
   }
   if (a is List && b is List) {
     return a.length == b.length &&
-        a.indexed.every(
-          ((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]),
-        );
+        a.indexed
+            .every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
   }
   if (a is Map && b is Map) {
     if (a.length != b.length) {
@@ -97,20 +96,26 @@ int _deepHash(Object? value) {
   return value.hashCode;
 }
 
+
 class HostLanguageDetection {
-  HostLanguageDetection({this.languageCode, this.confidence});
+  HostLanguageDetection({
+    this.languageCode,
+    this.confidence,
+  });
 
   String? languageCode;
 
   double? confidence;
 
   List<Object?> _toList() {
-    return <Object?>[languageCode, confidence];
+    return <Object?>[
+      languageCode,
+      confidence,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static HostLanguageDetection decode(Object result) {
     result as List<Object?>;
@@ -129,8 +134,7 @@ class HostLanguageDetection {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(languageCode, other.languageCode) &&
-        _deepEquals(confidence, other.confidence);
+    return _deepEquals(languageCode, other.languageCode) && _deepEquals(confidence, other.confidence);
   }
 
   @override
@@ -169,8 +173,7 @@ class HostTranslationResult {
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static HostTranslationResult decode(Object result) {
     result as List<Object?>;
@@ -191,10 +194,7 @@ class HostTranslationResult {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(sourceText, other.sourceText) &&
-        _deepEquals(translatedText, other.translatedText) &&
-        _deepEquals(sourceLanguage, other.sourceLanguage) &&
-        _deepEquals(targetLanguage, other.targetLanguage);
+    return _deepEquals(sourceText, other.sourceText) && _deepEquals(translatedText, other.translatedText) && _deepEquals(sourceLanguage, other.sourceLanguage) && _deepEquals(targetLanguage, other.targetLanguage);
   }
 
   @override
@@ -208,7 +208,11 @@ class HostTranslationResult {
 }
 
 class HostTranslateRequest {
-  HostTranslateRequest({this.text, this.sourceLanguage, this.targetLanguage});
+  HostTranslateRequest({
+    this.text,
+    this.sourceLanguage,
+    this.targetLanguage,
+  });
 
   String? text;
 
@@ -217,12 +221,15 @@ class HostTranslateRequest {
   String? targetLanguage;
 
   List<Object?> _toList() {
-    return <Object?>[text, sourceLanguage, targetLanguage];
+    return <Object?>[
+      text,
+      sourceLanguage,
+      targetLanguage,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static HostTranslateRequest decode(Object result) {
     result as List<Object?>;
@@ -242,9 +249,7 @@ class HostTranslateRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(text, other.text) &&
-        _deepEquals(sourceLanguage, other.sourceLanguage) &&
-        _deepEquals(targetLanguage, other.targetLanguage);
+    return _deepEquals(text, other.text) && _deepEquals(sourceLanguage, other.sourceLanguage) && _deepEquals(targetLanguage, other.targetLanguage);
   }
 
   @override
@@ -271,12 +276,15 @@ class HostTranslateBatchRequest {
   String? targetLanguage;
 
   List<Object?> _toList() {
-    return <Object?>[texts, sourceLanguage, targetLanguage];
+    return <Object?>[
+      texts,
+      sourceLanguage,
+      targetLanguage,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static HostTranslateBatchRequest decode(Object result) {
     result as List<Object?>;
@@ -290,16 +298,13 @@ class HostTranslateBatchRequest {
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) {
-    if (other is! HostTranslateBatchRequest ||
-        other.runtimeType != runtimeType) {
+    if (other is! HostTranslateBatchRequest || other.runtimeType != runtimeType) {
       return false;
     }
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(texts, other.texts) &&
-        _deepEquals(sourceLanguage, other.sourceLanguage) &&
-        _deepEquals(targetLanguage, other.targetLanguage);
+    return _deepEquals(texts, other.texts) && _deepEquals(sourceLanguage, other.sourceLanguage) && _deepEquals(targetLanguage, other.targetLanguage);
   }
 
   @override
@@ -312,6 +317,7 @@ class HostTranslateBatchRequest {
   }
 }
 
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -319,16 +325,16 @@ class _PigeonCodec extends StandardMessageCodec {
     if (value is int) {
       buffer.putUint8(4);
       buffer.putInt64(value);
-    } else if (value is HostLanguageDetection) {
+    }    else if (value is HostLanguageDetection) {
       buffer.putUint8(129);
       writeValue(buffer, value.encode());
-    } else if (value is HostTranslationResult) {
+    }    else if (value is HostTranslationResult) {
       buffer.putUint8(130);
       writeValue(buffer, value.encode());
-    } else if (value is HostTranslateRequest) {
+    }    else if (value is HostTranslateRequest) {
       buffer.putUint8(131);
       writeValue(buffer, value.encode());
-    } else if (value is HostTranslateBatchRequest) {
+    }    else if (value is HostTranslateBatchRequest) {
       buffer.putUint8(132);
       writeValue(buffer, value.encode());
     } else {
@@ -357,13 +363,9 @@ class LocalTranslationHostApi {
   /// Constructor for [LocalTranslationHostApi]. The [binaryMessenger] named argument is
   /// available for dependency injection. If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
-  LocalTranslationHostApi({
-    BinaryMessenger? binaryMessenger,
-    String messageChannelSuffix = '',
-  }) : pigeonVar_binaryMessenger = binaryMessenger,
-       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
-           ? '.$messageChannelSuffix'
-           : '';
+  LocalTranslationHostApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
+      : pigeonVar_binaryMessenger = binaryMessenger,
+        pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
   final BinaryMessenger? pigeonVar_binaryMessenger;
 
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
@@ -371,8 +373,7 @@ class LocalTranslationHostApi {
   final String pigeonVar_messageChannelSuffix;
 
   Future<bool> isSupported() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.isSupported$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.isSupported$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -382,100 +383,87 @@ class LocalTranslationHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as bool;
   }
 
   Future<HostLanguageDetection> detectLanguage(String text) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.detectLanguage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.detectLanguage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[text],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[text]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as HostLanguageDetection;
   }
 
-  Future<List<HostLanguageDetection>> detectLanguages(
-    List<String> texts,
-  ) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.detectLanguages$pigeonVar_messageChannelSuffix';
+  Future<List<HostLanguageDetection>> detectLanguages(List<String> texts) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.detectLanguages$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[texts],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[texts]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
-    return (pigeonVar_replyValue! as List<Object?>)
-        .cast<HostLanguageDetection>();
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
+    return (pigeonVar_replyValue! as List<Object?>).cast<HostLanguageDetection>();
   }
 
   Future<HostTranslationResult> translate(HostTranslateRequest request) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.translate$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.translate$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[request],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as HostTranslationResult;
   }
 
-  Future<List<HostTranslationResult>> translateBatch(
-    HostTranslateBatchRequest request,
-  ) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.translateBatch$pigeonVar_messageChannelSuffix';
+  Future<List<HostTranslationResult>> translateBatch(HostTranslateBatchRequest request) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.local_translation.LocalTranslationHostApi.translateBatch$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[request],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
-    return (pigeonVar_replyValue! as List<Object?>)
-        .cast<HostTranslationResult>();
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
+    return (pigeonVar_replyValue! as List<Object?>).cast<HostTranslationResult>();
   }
 }

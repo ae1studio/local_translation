@@ -1,6 +1,6 @@
 name: local_translation
 description: On-device translation and language detection for Flutter.
-version: 0.0.2
+version: 0.0.3
 homepage: https://github.com/ae1studio/local_translation
 
 environment:
@@ -8,6 +8,7 @@ environment:
   flutter: ">=3.7.0"
 
 platforms:
+  android:
   ios:
   macos:
 
@@ -26,6 +27,9 @@ dev_dependencies:
 flutter:
   plugin:
     platforms:
+      android:
+        package: dev.ae1.local_translation
+        pluginClass: LocalTranslationPlugin
       ios:
         pluginClass: LocalTranslationPlugin
         sharedDarwinSource: true

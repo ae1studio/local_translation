@@ -7,7 +7,12 @@ import XCTest
 class RunnerTests: XCTestCase {
   func testIsSupportedDoesNotCrash() {
     let plugin = LocalTranslationPlugin()
-    XCTAssertNoThrow(try plugin.isSupported())
+    let expectation = expectation(description: "isSupported")
+    plugin.isSupported { result in
+      XCTAssertNoThrow(try result.get())
+      expectation.fulfill()
+    }
+    waitForExpectations(timeout: 1)
   }
 
   func testPlannerInvalidatesTheSameLanguagePair() {

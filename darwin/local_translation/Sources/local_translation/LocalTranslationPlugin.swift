@@ -15,15 +15,16 @@ public class LocalTranslationPlugin: NSObject, FlutterPlugin, LocalTranslationHo
     LocalTranslationHostApiSetup.setUp(binaryMessenger: messenger, api: instance)
   }
 
-  func isSupported() throws -> Bool {
+  func isSupported(completion: @escaping (Result<Bool, Error>) -> Void) {
     if #available(iOS 18.0, macOS 15.0, *) {
       #if targetEnvironment(simulator)
-        return false
+        completion(.success(false))
       #else
-        return true
+        completion(.success(true))
       #endif
+    } else {
+      completion(.success(false))
     }
-    return false
   }
 
   func detectLanguage(
