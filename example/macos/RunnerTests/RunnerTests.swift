@@ -9,7 +9,9 @@ class RunnerTests: XCTestCase {
     let plugin = LocalTranslationPlugin()
     let expectation = expectation(description: "isSupported")
     plugin.isSupported { result in
-      XCTAssertNoThrow(try result.get())
+      if case .failure(let error) = result {
+        XCTFail("isSupported failed: \(error)")
+      }
       expectation.fulfill()
     }
     waitForExpectations(timeout: 1)
