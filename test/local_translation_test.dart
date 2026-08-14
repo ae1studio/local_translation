@@ -13,6 +13,8 @@ class FakeLocalTranslationPlatform extends LocalTranslationPlatform
 
   bool detectLanguageCalled = false;
   bool detectLanguagesCalled = false;
+  int translateCount = 0;
+  int translateBatchCount = 0;
 
   @override
   Future<bool> isSupported() async => true;
@@ -41,6 +43,7 @@ class FakeLocalTranslationPlatform extends LocalTranslationPlatform
     required String targetLanguage,
   }) async {
     translateCalled = true;
+    translateCount += 1;
     lastTexts = [text];
     lastSourceLanguage = sourceLanguage;
     lastTargetLanguage = targetLanguage;
@@ -59,6 +62,7 @@ class FakeLocalTranslationPlatform extends LocalTranslationPlatform
     required String targetLanguage,
   }) async {
     translateBatchCalled = true;
+    translateBatchCount += 1;
     lastTexts = texts;
     lastSourceLanguage = sourceLanguage;
     lastTargetLanguage = targetLanguage;
@@ -123,6 +127,36 @@ void main() {
     test('translate passes a null source language for auto-detect', () async {
       await plugin.translate('Hallo Welt', targetLanguage: 'en');
       expect(fake.lastSourceLanguage, isNull);
+    });
+
+    test('second translate uses the latest text', () async {
+      final first = await plugin.translate(
+        'Hallo Welt',
+        sourceLanguage: 'de',
+        targetLanguage: 'en',
+      );
+      final second = await plugin.translate(
+        'Guten Morgen',
+        sourceLanguage: 'de',
+        targetLanguage: 'en',
+      );
+
+      expect(fake.translateCount, 2);
+      expect(first.sourceText, 'Hallo Welt');
+      expect(second.sourceText, 'Guten Morgen');
+      expect(fake.lastTexts, ['Guten Morgen']);
+    });
+
+    test('translate then translateBatch both complete', () async {
+      await plugin.translate('Hallo Welt', targetLanguage: 'en');
+      final results = await plugin.translateBatch([
+        'Guten Morgen',
+        'Wie geht es dir?',
+      ], targetLanguage: 'en');
+
+      expect(fake.translateCount, 1);
+      expect(fake.translateBatchCount, 1);
+      expect(results, hasLength(2));
     });
 
     test('translateBatch preserves order', () async {

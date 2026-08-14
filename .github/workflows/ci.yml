@@ -1,4 +1,4 @@
-name: Analyzer
+name: CI
 
 on:
   push:
@@ -24,3 +24,60 @@ jobs:
 
       - name: Test
         run: flutter test
+
+  swift_tests:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install example dependencies
+        working-directory: example
+        run: flutter pub get
+
+      - name: Generate iOS build files
+        working-directory: example
+        run: flutter build ios --config-only --simulator --debug --no-codesign
+
+      - name: Run iOS unit tests
+        working-directory: example/ios
+        run: |
+          set -euo pipefail
+          DESTINATION=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          for devices in data["devices"].values():
+              for device in devices:
+                  if device.get("isAvailable") and "iPhone" in device.get("name", ""):
+                      print("platform=iOS Simulator,id=" + device["udid"])
+                      raise SystemExit
+          raise SystemExit("No available iPhone simulator")
+          ')
+          xcodebuild test \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -destination "$DESTINATION" \
+            -only-testing:RunnerTests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Generate macOS build files
+        working-directory: example
+        run: flutter build macos --config-only --debug
+
+      - name: Run macOS unit tests
+        working-directory: example/macos
+        run: |
+          xcodebuild test \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -destination 'platform=macOS' \
+            -only-testing:RunnerTests \
+            CODE_SIGN_IDENTITY=-

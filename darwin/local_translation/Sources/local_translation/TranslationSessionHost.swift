@@ -182,7 +182,6 @@
           continuation.resume(with: result)
         }
         model.sessionHandler = { session in
-          defer { self.model.sessionHandler = nil }
           do {
             let value = try await operation(session)
             resume(.success(value))
@@ -190,27 +189,14 @@
             resume(.failure(error))
           }
         }
-        self.prepareConfiguration(source: source, target: target)
+        model.source = source
+        model.target = target
+        model.generation += 1
       }
     }
 
-    private func prepareConfiguration(source: Locale.Language?, target: Locale.Language) {
-      if var configuration = model.configuration,
-         Self.samePair(configuration, source: source, target: target) {
-        configuration.invalidate()
-        model.configuration = configuration
-        return
-      }
-      model.configuration = TranslationSession.Configuration(source: source, target: target)
-    }
-
-    private static func samePair(
-      _ configuration: TranslationSession.Configuration,
-      source: Locale.Language?,
-      target: Locale.Language
-    ) -> Bool {
-      languageTag(configuration.source) == languageTag(source)
-        && languageTag(configuration.target) == languageTag(target)
+    static func languageTag(_ language: Locale.Language?) -> String? {
+      language?.minimalIdentifier
     }
 
     private func attachIfNeeded() async throws {
@@ -234,10 +220,6 @@
       }
     }
 
-    private static func languageTag(_ language: Locale.Language?) -> String? {
-      language?.minimalIdentifier
-    }
-
     #if os(iOS)
       private static func attachHost(
         _ view: TranslationHostView,
@@ -254,7 +236,8 @@
         host.view.backgroundColor = .clear
         host.view.isOpaque = false
         host.view.isUserInteractionEnabled = false
-        host.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+        host.view.frame = root.view.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         root.addChild(host)
         root.view.addSubview(host.view)
         host.didMove(toParent: root)
@@ -287,7 +270,8 @@
         let host = NSHostingController(rootView: view)
         host.view.wantsLayer = true
         host.view.layer?.backgroundColor = NSColor.clear.cgColor
-        host.view.frame = NSRect(x: 0, y: 0, width: 1, height: 1)
+        host.view.frame = contentView.bounds
+        host.view.autoresizingMask = [.width, .height]
         contentView.addSubview(host.view)
         hostingController = host
       }
@@ -302,7 +286,9 @@
 
   @available(iOS 18.0, macOS 15.0, *)
   final class TranslationHostModel: ObservableObject {
-    @Published var configuration: TranslationSession.Configuration?
+    @Published var generation = 0
+    var source: Locale.Language?
+    var target: Locale.Language = Locale.Language(identifier: "en")
     var sessionHandler: ((TranslationSession) async -> Void)?
     var onAppear: (() -> Void)?
   }
@@ -310,15 +296,44 @@
   @available(iOS 18.0, macOS 15.0, *)
   struct TranslationHostView: View {
     @ObservedObject var model: TranslationHostModel
+    @State private var configuration: TranslationSession.Configuration?
 
     var body: some View {
       Color.clear
-        .frame(width: 1, height: 1)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
         .onAppear { model.onAppear?() }
-        .translationTask(model.configuration) { session in
-          await model.sessionHandler?(session)
+        .onReceive(model.$generation) { generation in
+          guard generation > 0 else { return }
+          startTaskIfNeeded()
         }
+        .translationTask(configuration) { session in
+          let handler = model.sessionHandler
+          model.sessionHandler = nil
+          await handler?(session)
+        }
+    }
+
+    private func startTaskIfNeeded() {
+      guard model.generation > 0, model.sessionHandler != nil else { return }
+      let sourceTag = TranslationSessionHost.languageTag(model.source)
+      let targetTag = TranslationSessionHost.languageTag(model.target)
+      if var configuration,
+         TranslationSessionPlanner.isSamePair(
+           existingSourceTag: TranslationSessionHost.languageTag(configuration.source),
+           existingTargetTag: TranslationSessionHost.languageTag(configuration.target),
+           sourceTag: sourceTag,
+           targetTag: targetTag
+         )
+      {
+        configuration.invalidate()
+        self.configuration = configuration
+        return
+      }
+      configuration = TranslationSession.Configuration(
+        source: model.source,
+        target: model.target
+      )
     }
   }
 #endif
