@@ -29,7 +29,7 @@ class FakeLocalTranslationPlatform extends LocalTranslationPlatform
     detectLanguagesCalled = true;
     lastTexts = texts;
     return [
-      for (final text in texts)
+      for (final _ in texts)
         LanguageDetection(languageCode: 'de', confidence: 0.9),
     ];
   }
