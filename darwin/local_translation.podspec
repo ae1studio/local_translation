@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'local_translation'
-  s.version          = '0.0.1'
+  s.version          = '0.0.2'
   s.summary          = 'On device translation and language detection for Flutter.'
   s.description      = <<-DESC
 On device translation and language detection for Flutter.
