@@ -1,10 +1,13 @@
 package dev.ae1.local_translation
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import java.util.concurrent.Executors
 
 class LocalTranslationPlugin :
     FlutterPlugin,
+    ActivityAware,
     LocalTranslationHostApi {
     private var languageDetector: LanguageDetector? = null
     private var onDeviceTranslator: OnDeviceTranslator? = null
@@ -20,8 +23,25 @@ class LocalTranslationPlugin :
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         LocalTranslationHostApi.setUp(binding.binaryMessenger, null)
+        onDeviceTranslator?.close()
         languageDetector = null
         onDeviceTranslator = null
+    }
+
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        onDeviceTranslator?.activity = binding.activity
+    }
+
+    override fun onDetachedFromActivity() {
+        onDeviceTranslator?.activity = null
+    }
+
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        onDeviceTranslator?.activity = binding.activity
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() {
+        onDeviceTranslator?.activity = null
     }
 
     override fun isSupported(callback: (Result<Boolean>) -> Unit) {

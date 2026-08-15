@@ -1,8 +1,11 @@
 package dev.ae1.local_translation
 
+import android.app.Activity
 import android.content.Context
+import android.content.IntentSender
 import android.icu.util.ULocale
 import android.os.Build
+import android.os.SystemClock
 import android.view.translation.TranslationCapability
 import android.view.translation.TranslationContext
 import android.view.translation.TranslationManager
@@ -22,13 +25,26 @@ internal class OnDeviceTranslator(
 ) {
     private val workExecutor = Executors.newSingleThreadExecutor()
     private val callbackExecutor = Executors.newCachedThreadPool()
+    private val translators = mutableMapOf<String, Translator>()
+
+    @Volatile
+    var activity: Activity? = null
 
     fun isSupported(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return false
         }
         val manager = translationManager() ?: return false
-        return getCapabilities(manager).isNotEmpty()
+        return getCapabilities(manager).any { capability ->
+            TranslationCapabilityPicker.isUsable(capability.state)
+        }
+    }
+
+    fun close() {
+        workExecutor.execute {
+            translators.values.forEach { translator -> translator.destroy() }
+            translators.clear()
+        }
     }
 
     fun translate(
@@ -133,7 +149,7 @@ internal class OnDeviceTranslator(
 
         val resolvedSource = sourceLanguage ?: resolveSourceLanguage(texts.first())
         val manager = translationManager() ?: throw unsupportedPlatform()
-        val capability = findCapability(manager, resolvedSource, targetLanguage)
+        val capability = waitForCapability(manager, resolvedSource, targetLanguage)
             ?: throw unsupportedLanguagePair(
                 "Unsupported language pair: $resolvedSource -> $targetLanguage",
             )
@@ -145,30 +161,49 @@ internal class OnDeviceTranslator(
             buildTextSpec(targetLocale),
         ).build()
 
-        val translator = createTranslator(manager, translationContext)
-            ?: throw unsupportedPlatform()
+        val translator = translatorFor(
+            manager,
+            translationContext,
+            resolvedSource,
+            targetLanguage,
+        )
 
-        return try {
-            val requestValues = texts.map { TranslationRequestValue.forText(it) }
-            val translationRequest = TranslationRequest.Builder()
-                .setTranslationRequestValues(requestValues)
-                .build()
-            val response = translateRequest(translator, translationRequest)
-            mapResponse(
-                response = response,
-                texts = texts,
-                sourceLanguage = resolvedSource,
-                targetLanguage = targetLanguage,
-            )
-        } finally {
-            translator.destroy()
-        }
+        val requestValues = texts.map { TranslationRequestValue.forText(it) }
+        val translationRequest = TranslationRequest.Builder()
+            .setTranslationRequestValues(requestValues)
+            .setFlags(TranslationRequest.FLAG_TRANSLATION_RESULT)
+            .build()
+        val response = translateRequest(translator, translationRequest)
+        return mapResponse(
+            response = response,
+            texts = texts,
+            sourceLanguage = resolvedSource,
+            targetLanguage = targetLanguage,
+        )
     }
 
     private fun resolveSourceLanguage(text: String): String {
         val detection = languageDetector.detectSync(text)
         return detection.languageCode
             ?: throw unsupportedLanguagePair("Could not detect source language")
+    }
+
+    private fun translatorFor(
+        manager: TranslationManager,
+        translationContext: TranslationContext,
+        sourceLanguage: String,
+        targetLanguage: String,
+    ): Translator {
+        val key = "$sourceLanguage->$targetLanguage"
+        val existing = translators[key]
+        if (existing != null && !existing.isDestroyed) {
+            return existing
+        }
+        existing?.destroy()
+        val translator = createTranslator(manager, translationContext)
+            ?: throw unsupportedPlatform()
+        translators[key] = translator
+        return translator
     }
 
     private fun createTranslator(
@@ -240,14 +275,85 @@ internal class OnDeviceTranslator(
         }
     }
 
+    private fun waitForCapability(
+        manager: TranslationManager,
+        sourceLanguage: String,
+        targetLanguage: String,
+    ): TranslationCapability? {
+        val deadline = SystemClock.elapsedRealtime() + DOWNLOAD_TIMEOUT_MS
+        var openedSettings = false
+
+        while (true) {
+            val capability = findCapability(manager, sourceLanguage, targetLanguage)
+            when (TranslationCapabilityPicker.downloadAction(capability?.state)) {
+                TranslationCapabilityPicker.DownloadAction.Ready -> return capability
+                TranslationCapabilityPicker.DownloadAction.Unsupported -> return null
+                TranslationCapabilityPicker.DownloadAction.OpenSettings -> {
+                    if (!openedSettings) {
+                        openTranslationSettings(manager)
+                        openedSettings = true
+                    }
+                }
+                TranslationCapabilityPicker.DownloadAction.Wait -> Unit
+            }
+            if (SystemClock.elapsedRealtime() >= deadline) {
+                throw FlutterError(
+                    "unknown",
+                    "Timed out waiting for Live Translate language download",
+                    null,
+                )
+            }
+            Thread.sleep(POLL_INTERVAL_MS)
+        }
+    }
+
+    private fun openTranslationSettings(manager: TranslationManager) {
+        val pendingIntent = manager.onDeviceTranslationSettingsActivityIntent ?: return
+        val host = activity
+        val launch = Runnable {
+            try {
+                if (host != null) {
+                    host.startIntentSender(pendingIntent.intentSender, null, 0, 0, 0)
+                } else {
+                    pendingIntent.send()
+                }
+            } catch (_: IntentSender.SendIntentException) {
+                try {
+                    pendingIntent.send()
+                } catch (_: Exception) {
+                }
+            } catch (_: Exception) {
+            }
+        }
+        if (host != null) {
+            host.runOnUiThread(launch)
+        } else {
+            launch.run()
+        }
+    }
+
     private fun findCapability(
         manager: TranslationManager,
         sourceLanguage: String,
         targetLanguage: String,
     ): TranslationCapability? {
-        return getCapabilities(manager).firstOrNull { capability ->
-            localeMatches(sourceLanguage, capability.sourceSpec.locale) &&
-                localeMatches(targetLanguage, capability.targetSpec.locale)
+        val capabilities = getCapabilities(manager).toList()
+        val picked = TranslationCapabilityPicker.pick(
+            capabilities = capabilities.map { capability ->
+                LanguagePairCapability(
+                    sourceTag = capability.sourceSpec.locale.toLanguageTag(),
+                    targetTag = capability.targetSpec.locale.toLanguageTag(),
+                    state = capability.state,
+                )
+            },
+            sourceLanguage = sourceLanguage,
+            targetLanguage = targetLanguage,
+        ) ?: return null
+
+        return capabilities.firstOrNull { capability ->
+            capability.sourceSpec.locale.toLanguageTag() == picked.sourceTag &&
+                capability.targetSpec.locale.toLanguageTag() == picked.targetTag &&
+                capability.state == picked.state
         }
     }
 
@@ -287,10 +393,8 @@ internal class OnDeviceTranslator(
     companion object {
         private const val TRANSLATOR_TIMEOUT_SECONDS = 30L
         private const val TRANSLATION_TIMEOUT_SECONDS = 60L
-
-        fun localeMatches(requested: String, specLocale: ULocale): Boolean {
-            return Bcp47Matcher.matches(requested, specLocale)
-        }
+        private const val DOWNLOAD_TIMEOUT_MS = 180_000L
+        private const val POLL_INTERVAL_MS = 500L
     }
 }
 
