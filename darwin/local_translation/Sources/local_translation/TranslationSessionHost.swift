@@ -232,9 +232,10 @@
             details: nil
           )
         }
-        let host = PassthroughHostingController(rootView: view)
+        let host = UIHostingController(rootView: view)
         host.view.backgroundColor = .clear
         host.view.isOpaque = false
+        host.view.isUserInteractionEnabled = false
         host.definesPresentationContext = true
         host.view.frame = root.view.bounds
         host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -256,17 +257,6 @@
         return controller
       }
 
-      private final class PassthroughHostingController<Content: View>: UIHostingController<Content> {
-        override func viewDidLoad() {
-          super.viewDidLoad()
-          view.backgroundColor = .clear
-        }
-
-        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-          let hit = super.hitTest(point, with: event)
-          return hit === view ? nil : hit
-        }
-      }
     #elseif os(macOS)
       private static func attachHost(
         _ view: TranslationHostView,
