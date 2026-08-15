@@ -23,7 +23,7 @@
     #endif
     private var appearWaiter: CheckedContinuation<Void, Never>?
     private var viewAppeared = false
-    private var tail: Task<Void, Never> = Task {}
+    private var tail: Task<Void, Never>?
 
     func translate(
       text: String,
@@ -57,17 +57,14 @@
       _ work: @escaping @MainActor () async throws -> T
     ) async throws -> T {
       let previous = tail
-      return try await withCheckedThrowingContinuation { continuation in
-        tail = Task { @MainActor in
-          await previous.value
-          do {
-            let value = try await work()
-            continuation.resume(returning: value)
-          } catch {
-            continuation.resume(throwing: error)
-          }
-        }
+      let task = Task { @MainActor in
+        await previous?.value
+        return try await work()
       }
+      tail = Task { @MainActor in
+        _ = try? await task.value
+      }
+      return try await task.value
     }
 
     private func performTranslate(
@@ -236,8 +233,7 @@
         host.view.backgroundColor = .clear
         host.view.isOpaque = false
         host.view.isUserInteractionEnabled = false
-        host.view.frame = root.view.bounds
-        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        host.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
         root.addChild(host)
         root.view.addSubview(host.view)
         host.didMove(toParent: root)
@@ -270,8 +266,7 @@
         let host = NSHostingController(rootView: view)
         host.view.wantsLayer = true
         host.view.layer?.backgroundColor = NSColor.clear.cgColor
-        host.view.frame = contentView.bounds
-        host.view.autoresizingMask = [.width, .height]
+        host.view.frame = NSRect(x: 0, y: 0, width: 1, height: 1)
         contentView.addSubview(host.view)
         hostingController = host
       }
@@ -300,12 +295,12 @@
 
     var body: some View {
       Color.clear
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: 1, height: 1)
         .allowsHitTesting(false)
         .onAppear { model.onAppear?() }
-        .onReceive(model.$generation) { generation in
+        .onChange(of: model.generation) { _, generation in
           guard generation > 0 else { return }
-          startTaskIfNeeded()
+          applyConfiguration()
         }
         .translationTask(configuration) { session in
           let handler = model.sessionHandler
@@ -314,26 +309,25 @@
         }
     }
 
-    private func startTaskIfNeeded() {
-      guard model.generation > 0, model.sessionHandler != nil else { return }
-      let sourceTag = TranslationSessionHost.languageTag(model.source)
-      let targetTag = TranslationSessionHost.languageTag(model.target)
-      if var configuration,
-         TranslationSessionPlanner.isSamePair(
-           existingSourceTag: TranslationSessionHost.languageTag(configuration.source),
-           existingTargetTag: TranslationSessionHost.languageTag(configuration.target),
-           sourceTag: sourceTag,
-           targetTag: targetTag
-         )
-      {
-        configuration.invalidate()
-        self.configuration = configuration
-        return
-      }
-      configuration = TranslationSession.Configuration(
-        source: model.source,
-        target: model.target
+    private func applyConfiguration() {
+      let update = TranslationSessionPlanner.configurationUpdate(
+        hasExistingConfiguration: configuration != nil,
+        existingSourceTag: TranslationSessionHost.languageTag(configuration?.source),
+        existingTargetTag: TranslationSessionHost.languageTag(configuration?.target),
+        sourceTag: TranslationSessionHost.languageTag(model.source),
+        targetTag: TranslationSessionHost.languageTag(model.target)
       )
+      switch update {
+      case .invalidate:
+        guard var existing = configuration else { return }
+        existing.invalidate()
+        configuration = existing
+      case .create:
+        configuration = TranslationSession.Configuration(
+          source: model.source,
+          target: model.target
+        )
+      }
     }
   }
 #endif

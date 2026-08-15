@@ -17,7 +17,30 @@ class RunnerTests: XCTestCase {
     waitForExpectations(timeout: 1)
   }
 
+  func testPlannerCreatesConfigurationOnTheFirstRequest() {
+    XCTAssertEqual(
+      TranslationSessionPlanner.configurationUpdate(
+        hasExistingConfiguration: false,
+        existingSourceTag: nil,
+        existingTargetTag: nil,
+        sourceTag: "de",
+        targetTag: "en"
+      ),
+      .create
+    )
+  }
+
   func testPlannerInvalidatesTheSameLanguagePair() {
+    XCTAssertEqual(
+      TranslationSessionPlanner.configurationUpdate(
+        hasExistingConfiguration: true,
+        existingSourceTag: "de",
+        existingTargetTag: "en",
+        sourceTag: "de",
+        targetTag: "en"
+      ),
+      .invalidate
+    )
     XCTAssertTrue(
       TranslationSessionPlanner.isSamePair(
         existingSourceTag: "de",
@@ -29,6 +52,16 @@ class RunnerTests: XCTestCase {
   }
 
   func testPlannerCreatesANewSessionForADifferentPair() {
+    XCTAssertEqual(
+      TranslationSessionPlanner.configurationUpdate(
+        hasExistingConfiguration: true,
+        existingSourceTag: "de",
+        existingTargetTag: "en",
+        sourceTag: "fr",
+        targetTag: "en"
+      ),
+      .create
+    )
     XCTAssertFalse(
       TranslationSessionPlanner.isSamePair(
         existingSourceTag: "de",
