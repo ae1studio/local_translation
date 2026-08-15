@@ -1,3 +1,8 @@
+## 0.1.0
+
+- Added support for passthough of language download UI or enable Live translate for Pixels.
+- Handle non downloaded languages better.
+
 ## 0.0.3
 
 - Add Android support using the platform `TranslationManager` API (Android 12+).
