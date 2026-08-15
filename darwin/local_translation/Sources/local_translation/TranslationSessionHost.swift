@@ -180,6 +180,9 @@
         }
         model.sessionHandler = { session in
           do {
+            if source != nil {
+              try await session.prepareTranslation()
+            }
             let value = try await operation(session)
             resume(.success(value))
           } catch {
@@ -229,11 +232,12 @@
             details: nil
           )
         }
-        let host = UIHostingController(rootView: view)
+        let host = PassthroughHostingController(rootView: view)
         host.view.backgroundColor = .clear
         host.view.isOpaque = false
-        host.view.isUserInteractionEnabled = false
-        host.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+        host.definesPresentationContext = true
+        host.view.frame = root.view.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         root.addChild(host)
         root.view.addSubview(host.view)
         host.didMove(toParent: root)
@@ -251,6 +255,18 @@
         }
         return controller
       }
+
+      private final class PassthroughHostingController<Content: View>: UIHostingController<Content> {
+        override func viewDidLoad() {
+          super.viewDidLoad()
+          view.backgroundColor = .clear
+        }
+
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+          let hit = super.hitTest(point, with: event)
+          return hit === view ? nil : hit
+        }
+      }
     #elseif os(macOS)
       private static func attachHost(
         _ view: TranslationHostView,
@@ -266,7 +282,8 @@
         let host = NSHostingController(rootView: view)
         host.view.wantsLayer = true
         host.view.layer?.backgroundColor = NSColor.clear.cgColor
-        host.view.frame = NSRect(x: 0, y: 0, width: 1, height: 1)
+        host.view.frame = contentView.bounds
+        host.view.autoresizingMask = [.width, .height]
         contentView.addSubview(host.view)
         hostingController = host
       }
@@ -295,7 +312,7 @@
 
     var body: some View {
       Color.clear
-        .frame(width: 1, height: 1)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
         .onAppear { model.onAppear?() }
         .onChange(of: model.generation) { _, generation in
