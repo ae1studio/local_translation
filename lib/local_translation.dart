@@ -1,3 +1,6 @@
+/// On-device translation and language detection for Flutter.
+library;
+
 export 'src/language_detection.dart';
 export 'src/local_translation.dart';
 export 'src/local_translation_exception.dart';
