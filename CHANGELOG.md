@@ -1,3 +1,7 @@
+## 0.1.1
+
+- Added more code documentation.
+
 ## 0.1.0
 
 - Added support for passthough of language download UI or enable Live translate for Pixels.
